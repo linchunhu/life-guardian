@@ -14,7 +14,8 @@ root.render(
   </React.StrictMode>
 );
 
-// 注册 Service Worker
+// 暂时禁用 Service Worker
+/*
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
@@ -26,3 +27,4 @@ if ('serviceWorker' in navigator) {
       });
   });
 }
+*/

@@ -52,8 +52,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
     setLoading(true);
 
     try {
-      // 使用手机号作为邮箱的前缀来创建账号
-      const email = `${formData.phone}@lifeguardian.app`;
+      // 使用手机号作为邮箱的前缀来创建账号（添加 user_ 前缀确保邮箱格式有效）
+      const email = `user_${formData.phone}@lifeguardian.app`;
 
       const result = isLogin
         ? await signIn(email, formData.password)

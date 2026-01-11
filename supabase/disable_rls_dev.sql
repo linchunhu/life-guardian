@@ -1,0 +1,14 @@
+-- 快速禁用 RLS（仅用于开发测试）
+-- 在 Supabase SQL Editor 中执行此脚本
+
+-- 禁用所有表的 RLS
+ALTER TABLE profiles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE contacts DISABLE ROW LEVEL SECURITY;
+ALTER TABLE check_ins DISABLE ROW LEVEL SECURITY;
+ALTER TABLE moods DISABLE ROW LEVEL SECURITY;
+ALTER TABLE will_items DISABLE ROW LEVEL SECURITY;
+ALTER TABLE email_configs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE user_settings DISABLE ROW LEVEL SECURITY;
+
+-- 确认 RLS 已禁用
+SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public';

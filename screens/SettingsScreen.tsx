@@ -572,8 +572,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
                                             key={hours}
                                             onClick={() => setDetectionPeriod(hours)}
                                             className={`py-2 rounded-lg text-sm font-medium transition-all ${detectionPeriod === hours
-                                                    ? 'bg-primary text-black'
-                                                    : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                                                ? 'bg-primary text-black'
+                                                : 'bg-white/5 text-gray-400 hover:bg-white/10'
                                                 }`}
                                         >
                                             {hours}h
@@ -669,8 +669,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
                                 onClick={() => setActiveModal(null)}
                                 disabled={testStatus === 'sending'}
                                 className={`w-full py-3 rounded-xl font-bold transition-all ${testStatus === 'sending'
-                                        ? 'bg-white/5 text-gray-500 cursor-wait'
-                                        : 'bg-primary text-black hover:bg-primary/90'
+                                    ? 'bg-white/5 text-gray-500 cursor-wait'
+                                    : 'bg-primary text-black hover:bg-primary/90'
                                     }`}
                             >
                                 {testStatus === 'sending' ? '请稍候...' : '完成'}

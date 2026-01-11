@@ -10,7 +10,7 @@ interface SettingsScreenProps {
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) => {
-    const { user, profile, signOut, refreshProfile } = useAuth();
+    const { user, logout, updateProfile: authUpdateProfile } = useAuth();
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Partial<Profile>>({});
     const [settings, setSettings] = useState<Partial<UserSettings>>(getDefaultSettings());
@@ -50,14 +50,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
     };
 
     const handleStartEdit = () => {
-        if (profile) {
+        if (user) {
             setEditForm({
-                name: profile.name || '',
-                bio: profile.bio || '',
-                birthday: profile.birthday || '',
-                phone: profile.phone || '',
-                hobbies: profile.hobbies || '',
-                avatar_url: profile.avatar_url || '',
+                name: user.name || '',
+                bio: user.bio || '',
+                birthday: user.birthday || '',
+                phone: user.phone || '',
+                hobbies: user.hobbies || '',
+                avatar_url: user.avatar_url || '',
             });
         }
         setError(null);
@@ -71,14 +71,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
         setError(null);
 
         try {
-            const result = await updateProfile(user.id, editForm);
-            if (result) {
-                await refreshProfile();
+            // 使用新的 AuthContext updateProfile
+            const result = await authUpdateProfile(editForm);
+            if (!result.error) {
                 setIsEditing(false);
                 setSuccessMessage('个人信息已保存');
                 setTimeout(() => setSuccessMessage(null), 3000);
             } else {
-                setError('保存失败，请检查网络连接后重试');
+                setError(result.error || '保存失败，请检查网络连接后重试');
             }
         } catch (err) {
             setError('保存失败，请稍后重试');
@@ -138,8 +138,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
         }, 2000);
     };
 
-    const handleLogout = async () => {
-        await signOut();
+    const handleLogout = () => {
+        logout();
         onNavigate(Screen.LOGIN);
     };
 
@@ -157,8 +157,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
 
     // 获取用户名首字母
     const getInitials = () => {
-        if (profile?.name) {
-            return profile.name.charAt(0).toUpperCase();
+        if (user?.name) {
+            return user.name.charAt(0).toUpperCase();
         }
         return 'LG';
     };
@@ -340,17 +340,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ onNavigate }) =>
                 <div className="flex items-center gap-4 mb-8 bg-card-dark p-4 rounded-xl border border-white/5">
                     <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-primary to-blue-500 p-[2px]">
                         <div className="w-full h-full rounded-full bg-surface-dark flex items-center justify-center overflow-hidden">
-                            {profile?.avatar_url ? (
-                                <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover" />
+                            {user?.avatar_url ? (
+                                <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover" />
                             ) : (
                                 <span className="text-2xl font-bold text-white">{getInitials()}</span>
                             )}
                         </div>
                     </div>
                     <div className="flex-1">
-                        <h3 className="text-white font-bold text-lg">{profile?.name || 'Life Guardian'}</h3>
-                        <p className="text-gray-400 text-xs">{profile?.membership || '普通会员'}</p>
-                        <p className="text-gray-500 text-[10px] mt-1 line-clamp-1">{profile?.bio || '向死而生，珍惜当下。'}</p>
+                        <h3 className="text-white font-bold text-lg">{user?.name || 'Life Guardian'}</h3>
+                        <p className="text-gray-400 text-xs">{user?.membership || '普通会员'}</p>
+                        <p className="text-gray-500 text-[10px] mt-1 line-clamp-1">{user?.bio || '向死而生，珍惜当下。'}</p>
                     </div>
                     <button onClick={handleStartEdit} className="text-primary text-sm font-medium hover:text-primary/80 transition-colors px-2 py-1">编辑</button>
                 </div>

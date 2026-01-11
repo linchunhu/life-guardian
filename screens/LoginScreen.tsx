@@ -60,17 +60,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
         : await signUp(email, formData.password);
 
       if (result.error) {
-        // 处理常见错误
-        const errorMessage = result.error.message;
-        if (errorMessage.includes('Invalid login credentials')) {
+        // 处理常见错误 - 全部转换为手机号相关提示
+        const errorMessage = result.error.message.toLowerCase();
+        if (errorMessage.includes('invalid login credentials')) {
           setError('手机号或密码错误');
-        } else if (errorMessage.includes('User already registered')) {
+        } else if (errorMessage.includes('user already registered')) {
           setError('该手机号已被注册');
-        } else if (errorMessage.includes('Email not confirmed')) {
-          // 手机号登录不需要验证邮箱
+        } else if (errorMessage.includes('email not confirmed')) {
+          // 直接登录，不需要验证
           onNavigate(Screen.HOME);
+        } else if (errorMessage.includes('email') || errorMessage.includes('invalid')) {
+          setError('注册失败，请检查信息后重试');
+        } else if (errorMessage.includes('password')) {
+          setError('密码格式不正确，请使用至少6位密码');
         } else {
-          setError(errorMessage);
+          // 隐藏技术细节，显示友好提示
+          setError('操作失败，请稍后重试');
         }
       } else {
         // 登录/注册成功

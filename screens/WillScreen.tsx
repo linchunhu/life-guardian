@@ -1,12 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MaterialIcon } from '../components/MaterialIcon';
 import { Screen } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { getWillItems, createWillItem, updateWillItem, deleteWillItem, type WillItemType, type WillItemStatus } from '../services/willService';
+import { getWillItems, createWillItem, updateWillItem, deleteWillItem, uploadWillFile, type WillItemType, type WillItemStatus } from '../services/willService';
 import type { WillItem } from '../lib/supabaseClient';
 
 interface WillScreenProps {
   onNavigate: (screen: Screen) => void;
+}
+
+// 资产信息类型
+interface AssetInfo {
+  bankName?: string;
+  accountNumber?: string;
+  accountType?: string;
+  stockBroker?: string;
+  stockAccount?: string;
+  realEstate?: string;
+  insurance?: string;
+  otherAssets?: string;
+  notes?: string;
 }
 
 export const WillScreen: React.FC<WillScreenProps> = ({ onNavigate }) => {
@@ -17,6 +30,15 @@ export const WillScreen: React.FC<WillScreenProps> = ({ onNavigate }) => {
   const [editingItem, setEditingItem] = useState<WillItem | null>(null);
   const [formData, setFormData] = useState<Partial<WillItem>>({});
   const [error, setError] = useState<string | null>(null);
+
+  // 视频上传相关
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreview, setVideoPreview] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  // 资产信息
+  const [assetInfo, setAssetInfo] = useState<AssetInfo>({});
 
   // 加载数据
   useEffect(() => {
@@ -62,6 +84,9 @@ export const WillScreen: React.FC<WillScreenProps> = ({ onNavigate }) => {
       if (newItem) {
         setItems([...items, newItem]);
         setFormData(newItem);
+        setAssetInfo({});
+        setVideoFile(null);
+        setVideoPreview(null);
         setEditingItem(newItem);
       } else {
         setError('创建失败，请检查网络连接');
@@ -76,28 +101,67 @@ export const WillScreen: React.FC<WillScreenProps> = ({ onNavigate }) => {
 
   const handleItemClick = (item: WillItem) => {
     setFormData({ ...item });
+    // 解析资产信息
+    if (item.type === 'asset' && item.description) {
+      try {
+        const parsed = JSON.parse(item.description);
+        setAssetInfo(parsed);
+      } catch {
+        setAssetInfo({ notes: item.description });
+      }
+    } else {
+      setAssetInfo({});
+    }
+    setVideoFile(null);
+    setVideoPreview(item.file_url || null);
     setEditingItem(item);
     setError(null);
   };
 
   const handleSaveItem = async () => {
-    if (!editingItem || !formData) return;
+    if (!editingItem || !formData || !user) return;
 
     setSaving(true);
     setError(null);
 
     try {
+      let fileUrl = formData.file_url;
+
+      // 如果有视频文件，先上传
+      if (videoFile && formData.type === 'video') {
+        setUploadProgress(10);
+        const url = await uploadWillFile(user.id, videoFile, editingItem.id);
+        if (url) {
+          fileUrl = url;
+          setUploadProgress(100);
+        } else {
+          setError('视频上传失败');
+          setSaving(false);
+          return;
+        }
+      }
+
+      // 如果是资产类型，将资产信息序列化
+      let description = formData.description;
+      if (formData.type === 'asset') {
+        description = JSON.stringify(assetInfo);
+      }
+
       const updated = await updateWillItem(editingItem.id, {
         type: formData.type,
         title: formData.title,
-        description: formData.description,
+        description: description,
         status: formData.status,
+        file_url: fileUrl,
         meta: formData.status === 'ready' ? '已就绪 • 刚刚更新' : '上次编辑: 刚刚',
       });
 
       if (updated) {
         setItems(items.map(item => item.id === updated.id ? updated : item));
         setEditingItem(null);
+        setVideoFile(null);
+        setVideoPreview(null);
+        setUploadProgress(0);
       } else {
         setError('保存失败，请重试');
       }
@@ -130,6 +194,19 @@ export const WillScreen: React.FC<WillScreenProps> = ({ onNavigate }) => {
     setSaving(false);
   };
 
+  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // 检查文件大小 (限制 100MB)
+      if (file.size > 100 * 1024 * 1024) {
+        setError('视频文件不能超过100MB');
+        return;
+      }
+      setVideoFile(file);
+      setVideoPreview(URL.createObjectURL(file));
+    }
+  };
+
   const getItemStyles = (type: WillItemType) => {
     switch (type) {
       case 'video':
@@ -148,8 +225,8 @@ export const WillScreen: React.FC<WillScreenProps> = ({ onNavigate }) => {
         };
       case 'asset':
         return {
-          iconBg: 'bg-gray-700/30 border-white/5',
-          iconColor: 'text-gray-400',
+          iconBg: 'bg-amber-500/10 border-amber-500/20',
+          iconColor: 'text-amber-400',
           iconName: 'account_balance_wallet',
           badgeStyle: 'bg-gray-700 text-gray-400 border-gray-600',
         };
@@ -195,7 +272,7 @@ export const WillScreen: React.FC<WillScreenProps> = ({ onNavigate }) => {
         {/* Editor Header */}
         <div className="sticky top-0 z-50 flex items-center bg-[#102216]/95 backdrop-blur-md p-4 pb-2 justify-between border-b border-white/5">
           <button
-            onClick={() => setEditingItem(null)}
+            onClick={() => { setEditingItem(null); setVideoFile(null); setVideoPreview(null); }}
             disabled={saving}
             className="text-gray-400 flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-white/10 transition-colors disabled:opacity-50"
           >
@@ -219,6 +296,16 @@ export const WillScreen: React.FC<WillScreenProps> = ({ onNavigate }) => {
           </div>
         )}
 
+        {/* Upload Progress */}
+        {uploadProgress > 0 && uploadProgress < 100 && (
+          <div className="mx-4 mt-4">
+            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div className="h-full bg-primary transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1 text-center">上传中 {uploadProgress}%</p>
+          </div>
+        )}
+
         {/* Editor Form */}
         <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
 
@@ -231,8 +318,8 @@ export const WillScreen: React.FC<WillScreenProps> = ({ onNavigate }) => {
                   key={type}
                   onClick={() => setFormData({ ...formData, type })}
                   className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${formData.type === type
-                      ? 'bg-primary/10 border-primary text-primary'
-                      : 'bg-card-dark border-white/5 text-gray-400 hover:bg-white/5'
+                    ? 'bg-primary/10 border-primary text-primary'
+                    : 'bg-card-dark border-white/5 text-gray-400 hover:bg-white/5'
                     }`}
                 >
                   <MaterialIcon name={getItemStyles(type).iconName} className="text-2xl" />
@@ -256,18 +343,160 @@ export const WillScreen: React.FC<WillScreenProps> = ({ onNavigate }) => {
             />
           </div>
 
-          {/* Content Input */}
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-              {formData.type === 'video' ? '视频寄语' : formData.type === 'asset' ? '资产信息' : '内容描述'}
-            </label>
-            <textarea
-              value={formData.description || ''}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full h-40 bg-card-dark border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 transition-colors resize-none"
-              placeholder="在这里写下你的嘱托..."
-            />
-          </div>
+          {/* 根据类型显示不同的内容区域 */}
+          {formData.type === 'video' && (
+            <>
+              {/* 视频上传区域 */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">上传视频</label>
+                <input
+                  type="file"
+                  ref={videoInputRef}
+                  accept="video/*"
+                  onChange={handleVideoSelect}
+                  className="hidden"
+                />
+
+                {videoPreview ? (
+                  <div className="relative rounded-xl overflow-hidden bg-black">
+                    <video
+                      src={videoPreview}
+                      controls
+                      className="w-full max-h-48 object-contain"
+                    />
+                    <button
+                      onClick={() => { setVideoFile(null); setVideoPreview(null); }}
+                      className="absolute top-2 right-2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white hover:bg-black/70"
+                    >
+                      <MaterialIcon name="close" className="text-sm" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => videoInputRef.current?.click()}
+                    className="w-full h-32 border-2 border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-primary hover:border-primary/30 transition-all"
+                  >
+                    <MaterialIcon name="cloud_upload" className="text-3xl" />
+                    <span className="text-sm">点击上传视频</span>
+                    <span className="text-xs text-gray-600">支持 MP4, MOV 等格式，最大 100MB</span>
+                  </button>
+                )}
+              </div>
+
+              {/* 视频寄语 */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">视频寄语</label>
+                <textarea
+                  value={formData.description || ''}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full h-24 bg-card-dark border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 transition-colors resize-none"
+                  placeholder="为这段视频写下一些说明..."
+                />
+              </div>
+            </>
+          )}
+
+          {formData.type === 'asset' && (
+            <>
+              {/* 资产信息表单 */}
+              <div className="space-y-4">
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex gap-3">
+                  <MaterialIcon name="security" className="text-amber-400 text-xl shrink-0" />
+                  <p className="text-xs text-amber-200/80 leading-snug">
+                    请放心填写，所有资产信息均采用端到端加密存储，仅在触发紧急预案时传达给您指定的联系人。
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">银行账户</label>
+                  <input
+                    type="text"
+                    value={assetInfo.bankName || ''}
+                    onChange={(e) => setAssetInfo({ ...assetInfo, bankName: e.target.value })}
+                    className="w-full bg-card-dark border border-white/10 rounded-xl p-3 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50"
+                    placeholder="开户银行名称"
+                  />
+                  <input
+                    type="text"
+                    value={assetInfo.accountNumber || ''}
+                    onChange={(e) => setAssetInfo({ ...assetInfo, accountNumber: e.target.value })}
+                    className="w-full bg-card-dark border border-white/10 rounded-xl p-3 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50"
+                    placeholder="银行卡号"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">证券账户</label>
+                  <input
+                    type="text"
+                    value={assetInfo.stockBroker || ''}
+                    onChange={(e) => setAssetInfo({ ...assetInfo, stockBroker: e.target.value })}
+                    className="w-full bg-card-dark border border-white/10 rounded-xl p-3 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50"
+                    placeholder="券商名称"
+                  />
+                  <input
+                    type="text"
+                    value={assetInfo.stockAccount || ''}
+                    onChange={(e) => setAssetInfo({ ...assetInfo, stockAccount: e.target.value })}
+                    className="w-full bg-card-dark border border-white/10 rounded-xl p-3 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50"
+                    placeholder="资金账号"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">房产信息</label>
+                  <textarea
+                    value={assetInfo.realEstate || ''}
+                    onChange={(e) => setAssetInfo({ ...assetInfo, realEstate: e.target.value })}
+                    className="w-full h-20 bg-card-dark border border-white/10 rounded-xl p-3 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 resize-none"
+                    placeholder="房产地址、产权证号等信息"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">保险信息</label>
+                  <textarea
+                    value={assetInfo.insurance || ''}
+                    onChange={(e) => setAssetInfo({ ...assetInfo, insurance: e.target.value })}
+                    className="w-full h-20 bg-card-dark border border-white/10 rounded-xl p-3 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 resize-none"
+                    placeholder="保险公司、保单号、受益人等"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">其他资产</label>
+                  <textarea
+                    value={assetInfo.otherAssets || ''}
+                    onChange={(e) => setAssetInfo({ ...assetInfo, otherAssets: e.target.value })}
+                    className="w-full h-20 bg-card-dark border border-white/10 rounded-xl p-3 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 resize-none"
+                    placeholder="数字货币、贵金属、收藏品等"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">备注说明</label>
+                  <textarea
+                    value={assetInfo.notes || ''}
+                    onChange={(e) => setAssetInfo({ ...assetInfo, notes: e.target.value })}
+                    className="w-full h-24 bg-card-dark border border-white/10 rounded-xl p-3 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 resize-none"
+                    placeholder="其他需要说明的事项，如密码提示、遗产分配意愿等"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {formData.type === 'letter' && (
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">信件内容</label>
+              <textarea
+                value={formData.description || ''}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full h-48 bg-card-dark border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 transition-colors resize-none"
+                placeholder="在这里写下你想对亲人说的话..."
+              />
+            </div>
+          )}
 
           {/* Status Toggle */}
           <div className="bg-card-dark rounded-xl p-4 border border-white/5 flex items-center justify-between">
@@ -352,17 +581,23 @@ export const WillScreen: React.FC<WillScreenProps> = ({ onNavigate }) => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start mb-1">
-                      <h4 className={`${item.type === 'asset' ? 'text-gray-300' : 'text-white'} font-bold text-base truncate`}>{item.title}</h4>
+                      <h4 className={`${item.type === 'asset' ? 'text-amber-300' : 'text-white'} font-bold text-base truncate`}>{item.title}</h4>
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getStatusBadgeStyle(item.status)}`}>{getStatusText(item.status)}</span>
                     </div>
                     <p className="text-gray-500 text-xs mb-3 line-clamp-2">
-                      {item.description || '点击编辑内容...'}
+                      {item.type === 'asset' ? '资产信息已加密存储' : (item.description || '点击编辑内容...')}
                     </p>
                     <div className="flex items-center gap-3 text-[10px] text-gray-500">
                       <span className="flex items-center gap-1">
                         <MaterialIcon name={item.meta_icon || 'edit'} className="text-[12px]" />
                         {item.meta || '未编辑'}
                       </span>
+                      {item.file_url && item.type === 'video' && (
+                        <span className="flex items-center gap-1 text-blue-400">
+                          <MaterialIcon name="videocam" className="text-[12px]" />
+                          已上传视频
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

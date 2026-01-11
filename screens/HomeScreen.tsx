@@ -45,9 +45,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   // 动态计算的生命统计数据
   const [lifeStats, setLifeStats] = useState({ daysAlive: 12450, remainingYears: 32, peerPercentage: 88 });
+
+  // 更新当前时间
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // 加载今日状态和计算统计数据
   useEffect(() => {
@@ -95,7 +104,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
       setCheckInStatus('checked');
       // 显示成功提示
       setShowSuccessToast(true);
-      setTimeout(() => setShowSuccessToast(false), 3000);
+      // 2秒后跳转到生存统计页面
+      setTimeout(() => {
+        setShowSuccessToast(false);
+        onNavigate(Screen.STATS);
+      }, 2000);
     } else {
       // 失败时重置状态
       setCheckInStatus('idle');
@@ -122,6 +135,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   // 格式化天数显示
   const formatDays = (days: number) => {
     return days.toLocaleString('zh-CN');
+  };
+
+  // 格式化当前时间
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   };
 
   return (
@@ -214,8 +236,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
       {/* Main Content */}
       <main className="flex-1 flex flex-col items-center relative z-10 px-6 overflow-y-auto no-scrollbar pb-4">
 
+        {/* Current Time Display */}
+        <div className="w-full text-center mt-2 mb-2">
+          <p className="text-2xl font-bold text-primary font-mono tracking-wider">{formatTime(currentTime)}</p>
+          <p className="text-xs text-gray-500 mt-1">{formatDate(currentTime)}</p>
+        </div>
+
         {/* Days Counter - 动态显示 */}
-        <div className="mt-8 mb-4 text-center w-full cursor-pointer group" onClick={() => onNavigate(Screen.STATS)}>
+        <div className="mt-4 mb-4 text-center w-full cursor-pointer group" onClick={() => onNavigate(Screen.STATS)}>
           <h2 className="text-gray-400 text-sm font-medium uppercase tracking-widest mb-2 group-hover:text-primary transition-colors">
             已在这个星球停留了
           </h2>
@@ -316,8 +344,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   onChange={() => { }}
                 />
                 <div className={`w-12 h-12 rounded-full bg-surface-dark border flex items-center justify-center transition-all duration-300 ${selectedMood === mood.name
-                    ? 'border-primary/80 bg-[#0a2010] shadow-[0_0_15px_rgba(19,236,91,0.3)] text-primary'
-                    : 'border-surface-border text-gray-500 group-hover:border-gray-600'
+                  ? 'border-primary/80 bg-[#0a2010] shadow-[0_0_15px_rgba(19,236,91,0.3)] text-primary'
+                  : 'border-surface-border text-gray-500 group-hover:border-gray-600'
                   }`}>
                   <MaterialIcon name={mood.icon} className="text-2xl" />
                 </div>

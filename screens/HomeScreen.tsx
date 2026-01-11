@@ -40,7 +40,7 @@ const calculateLifeStats = (birthday: string | null) => {
 };
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
-  const { user, profile, signOut } = useAuth();
+  const { user, logout } = useAuth();
   const [checkInStatus, setCheckInStatus] = useState<'idle' | 'scanning' | 'checked'>('idle');
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -65,13 +65,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
     }
   }, [user]);
 
-  // 当 profile 更新时重新计算统计数据
+  // 当用户信息更新时重新计算统计数据
   useEffect(() => {
-    if (profile) {
-      const stats = calculateLifeStats(profile.birthday);
+    if (user) {
+      const stats = calculateLifeStats(user.birthday || null);
       setLifeStats(stats);
     }
-  }, [profile?.birthday]);
+  }, [user?.birthday]);
 
   const loadTodayStatus = async () => {
     if (!user) return;
@@ -127,9 +127,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
     setIsMenuOpen(false);
   };
 
-  const handleLogout = async () => {
-    await signOut();
+  const handleLogout = () => {
+    logout();
     setIsMenuOpen(false);
+    onNavigate(Screen.LOGIN);
   };
 
   // 格式化天数显示

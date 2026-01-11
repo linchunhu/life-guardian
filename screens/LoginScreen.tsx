@@ -8,18 +8,18 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
-  const { signIn, signUp } = useAuth();
+  const { login, register } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
     phone: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 验证手机号格式
-  const validatePhone = (phone: string) => {
+  // 手机号格式验证
+  const validatePhone = (phone: string): boolean => {
     const phoneRegex = /^1[3-9]\d{9}$/;
     return phoneRegex.test(phone);
   };
@@ -28,55 +28,33 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
     e.preventDefault();
     setError(null);
 
-    // 验证手机号
-    if (!formData.phone || !formData.password) {
-      setError('请填写完整的登录信息');
-      return;
-    }
-
+    // 验证手机号格式
     if (!validatePhone(formData.phone)) {
-      setError('请输入正确的手机号码');
+      setError('请输入正确的11位手机号');
       return;
     }
 
+    // 验证密码
+    if (formData.password.length < 6) {
+      setError('密码至少需要6位');
+      return;
+    }
+
+    // 注册时验证密码确认
     if (!isLogin && formData.password !== formData.confirmPassword) {
       setError('两次输入的密码不一致');
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setError('密码长度至少为6位');
       return;
     }
 
     setLoading(true);
 
     try {
-      // 使用手机号作为邮箱的前缀来创建账号（添加 user_ 前缀确保邮箱格式有效）
-      const email = `user_${formData.phone}@lifeguardian.app`;
-
       const result = isLogin
-        ? await signIn(email, formData.password)
-        : await signUp(email, formData.password);
+        ? await login(formData.phone, formData.password)
+        : await register(formData.phone, formData.password);
 
       if (result.error) {
-        // 处理常见错误 - 全部转换为手机号相关提示
-        const errorMessage = result.error.message.toLowerCase();
-        if (errorMessage.includes('invalid login credentials')) {
-          setError('手机号或密码错误');
-        } else if (errorMessage.includes('user already registered')) {
-          setError('该手机号已被注册');
-        } else if (errorMessage.includes('email not confirmed')) {
-          // 直接登录，不需要验证
-          onNavigate(Screen.HOME);
-        } else if (errorMessage.includes('email') || errorMessage.includes('invalid')) {
-          setError('注册失败，请检查信息后重试');
-        } else if (errorMessage.includes('password')) {
-          setError('密码格式不正确，请使用至少6位密码');
-        } else {
-          // 隐藏技术细节，显示友好提示
-          setError('操作失败，请稍后重试');
-        }
+        setError(result.error);
       } else {
         // 登录/注册成功
         onNavigate(Screen.HOME);
@@ -89,117 +67,108 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full bg-[#102216] relative overflow-hidden">
-      {/* Background Effects */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/10 blur-[100px] rounded-full"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/5 blur-[100px] rounded-full"></div>
+    <div className="flex h-full flex-col bg-[#102216] text-white overflow-y-auto">
+      {/* Header */}
+      <div className="flex flex-col items-center pt-16 pb-8">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/30 flex items-center justify-center mb-6 shadow-glow">
+          <MaterialIcon name="health_and_safety" filled className="text-primary text-4xl" />
+        </div>
+        <h1 className="text-2xl font-bold text-white mb-2">Life Guardian</h1>
+        <p className="text-gray-400 text-sm">您的生命资产数字托管专家</p>
       </div>
 
-      <div className="z-10 flex flex-col items-center w-full max-w-sm px-8">
-        <div className="flex flex-col items-center gap-4 mb-10">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-green-600 flex items-center justify-center shadow-glow mb-2">
-            <MaterialIcon name="health_and_safety" className="text-4xl text-[#102216]" filled />
+      {/* Error Message */}
+      {error && (
+        <div className="mx-6 mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2">
+          <MaterialIcon name="error_outline" className="text-red-400 text-lg" />
+          <span className="text-red-400 text-sm">{error}</span>
+        </div>
+      )}
+
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="flex-1 px-6 space-y-4">
+        {/* Phone Input */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">手机号</label>
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">+86</span>
+            <input
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 11) })}
+              className="w-full bg-card-dark border border-white/10 rounded-xl p-4 pl-12 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 transition-colors"
+              placeholder="请输入手机号"
+              maxLength={11}
+            />
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight text-center">
-            Life Guardian
-          </h1>
-          <p className="text-gray-400 text-sm text-center max-w-[200px] leading-relaxed">
-            您的生命资产数字托管专家
-          </p>
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="w-full mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2">
-            <MaterialIcon name="error_outline" className="text-red-400 text-lg" />
-            <span className="text-red-400 text-sm">{error}</span>
+        {/* Password Input */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">密码</label>
+          <input
+            type="password"
+            value={formData.password}
+            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            className="w-full bg-card-dark border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 transition-colors"
+            placeholder="请输入密码"
+          />
+        </div>
+
+        {/* Confirm Password (Register only) */}
+        {!isLogin && (
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">确认密码</label>
+            <input
+              type="password"
+              value={formData.confirmPassword}
+              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+              className="w-full bg-card-dark border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 transition-colors"
+              placeholder="请再次输入密码"
+            />
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="w-full space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">手机号</label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">+86</span>
-              <input
-                type="tel"
-                required
-                maxLength={11}
-                placeholder="请输入手机号"
-                value={formData.phone}
-                onChange={(e) => {
-                  // 只允许输入数字
-                  const value = e.target.value.replace(/\D/g, '');
-                  setFormData({ ...formData, phone: value });
-                }}
-                className="w-full bg-card-dark border border-white/10 rounded-xl p-4 pl-14 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 transition-colors"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">密码</label>
-            <input
-              type="password"
-              required
-              placeholder="请输入密码 (至少6位)"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="w-full bg-card-dark border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 transition-colors"
-            />
-          </div>
-
-          {!isLogin && (
-            <div className="space-y-1 animate-fade-in">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">确认密码</label>
-              <input
-                type="password"
-                required
-                placeholder="请再次输入密码"
-                value={formData.confirmPassword}
-                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                className="w-full bg-card-dark border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 transition-colors"
-              />
-            </div>
+        {/* Submit Button */}
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-primary text-black font-bold py-4 rounded-xl hover:bg-primary/90 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-6"
+        >
+          {loading ? (
+            <>
+              <MaterialIcon name="refresh" className="animate-spin" />
+              <span>处理中...</span>
+            </>
+          ) : (
+            <>
+              <span>{isLogin ? '登录' : '注册账号'}</span>
+              <MaterialIcon name="arrow_forward" />
+            </>
           )}
+        </button>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full bg-primary hover:bg-primary/90 text-[#102216] font-bold text-lg py-4 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group mt-6 ${loading ? 'opacity-80 cursor-wait' : ''}`}
-          >
-            {loading ? (
-              <span className="flex items-center gap-2">
-                <MaterialIcon name="refresh" className="animate-spin" />
-                处理中...
-              </span>
-            ) : (
-              <>
-                <span>{isLogin ? '立即登录' : '注册账号'}</span>
-                <MaterialIcon name="arrow_forward" className="group-hover:translate-x-1 transition-transform" />
-              </>
-            )}
-          </button>
-        </form>
-
-        <div className="mt-6 flex items-center justify-center gap-2">
+        {/* Toggle Login/Register */}
+        <div className="text-center py-4">
           <span className="text-gray-500 text-sm">
-            {isLogin ? '还没有账号?' : '已有账号?'}
+            {isLogin ? '还没有账号？' : '已有账号？'}
           </span>
           <button
+            type="button"
             onClick={() => {
               setIsLogin(!isLogin);
-              setFormData({ phone: '', password: '', confirmPassword: '' });
               setError(null);
             }}
-            className="text-primary font-bold text-sm hover:underline"
+            className="text-primary font-medium ml-2 hover:underline"
           >
             {isLogin ? '去注册' : '去登录'}
           </button>
         </div>
+      </form>
 
-        <p className="text-xs text-gray-600 mt-8 font-mono">Build 20231105.1.0.3</p>
+      {/* Footer */}
+      <div className="text-center pb-8 pt-4">
+        <p className="text-gray-600 text-xs">Build 20231105.1.0.3</p>
       </div>
     </div>
   );
